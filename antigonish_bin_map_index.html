@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Antigonish Underground Bin Map</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+
+  <style>
+    :root {
+      --bg: #eef4f1;
+      --panel: rgba(255, 255, 255, 0.95);
+      --text: #17322a;
+      --muted: #5b716b;
+      --border: rgba(17, 24, 39, 0.1);
+      --shadow: 0 12px 30px rgba(16, 24, 40, 0.14);
+      --green: #1f7a45;
+      --red: #c0362c;
+      --blue: #0c6ddf;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    body {
+      overflow: hidden;
+    }
+
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    .topbar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      z-index: 1000;
+      display: grid;
+      grid-template-columns: minmax(280px, 390px) repeat(3, minmax(140px, 1fr));
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+      pointer-events: auto;
+    }
+
+    .title-card {
+      padding: 16px 18px;
+    }
+
+    .title-card h1 {
+      margin: 0 0 6px;
+      font-size: 1.1rem;
+      line-height: 1.2;
+    }
+
+    .title-card p {
+      margin: 0;
+      font-size: 0.92rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .stat-card {
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 86px;
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-size: 1.65rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .detail-panel {
+      position: absolute;
+      right: 16px;
+      bottom: 16px;
+      width: min(420px, calc(100% - 32px));
+      z-index: 1000;
+      padding: 18px;
+    }
+
+    .detail-header {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .detail-header h2 {
+      margin: 0;
+      font-size: 1.15rem;
+    }
+
+    .detail-header p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+
+    .badge.ok {
+      background: rgba(31, 122, 69, 0.1);
+      color: var(--green);
+      border-color: rgba(31, 122, 69, 0.18);
+    }
+
+    .badge.full {
+      background: rgba(192, 54, 44, 0.11);
+      color: var(--red);
+      border-color: rgba(192, 54, 44, 0.18);
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .detail-item {
+      background: rgba(12, 109, 223, 0.05);
+      border: 1px solid rgba(12, 109, 223, 0.09);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .detail-item .label {
+      font-size: 0.76rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
+
+    .detail-item .value {
+      font-size: 0.98rem;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .notes {
+      background: #f8fbfa;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .notes .label {
+      font-size: 0.76rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
+
+    .notes .value {
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .actions {
+      position: absolute;
+      left: 16px;
+      bottom: 16px;
+      z-index: 1000;
+      display: flex;
+      gap: 10px;
+    }
+
+    .action-btn {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      box-shadow: var(--shadow);
+      border-radius: 14px;
+      padding: 11px 14px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .action-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .bin-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: white;
+      color: var(--green);
+      border: 2px solid rgba(31, 122, 69, 0.22);
+      box-shadow: 0 8px 18px rgba(16, 24, 40, 0.22);
+    }
+
+    .bin-icon svg {
+      width: 23px;
+      height: 23px;
+      stroke-width: 2.1;
+    }
+
+    .bin-popup {
+      min-width: 170px;
+    }
+
+    .bin-popup strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.95rem;
+    }
+
+    .bin-popup span {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+      display: block;
+    }
+
+    .leaflet-popup-content-wrapper {
+      border-radius: 14px;
+    }
+
+    @media (max-width: 1100px) {
+      .topbar {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .title-card {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .topbar {
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .title-card h1 {
+        font-size: 1rem;
+      }
+
+      .stat-card {
+        min-height: 74px;
+      }
+
+      .stat-value {
+        font-size: 1.35rem;
+      }
+
+      .detail-panel {
+        left: 10px;
+        right: 10px;
+        width: auto;
+        bottom: 74px;
+        padding: 14px;
+      }
+
+      .detail-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .actions {
+        left: 10px;
+        bottom: 10px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+
+      .detail-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="map"></div>
+
+    <div class="topbar">
+      <div class="card title-card">
+        <h1>Antigonish Underground Bin Map</h1>
+        <p>
+          Click any garbage bin icon to view whether it is full or not full
+          and when it was last emptied.
+        </p>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-label">Total Bins</div>
+        <div class="stat-value" id="totalBins">0</div>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-label">Full</div>
+        <div class="stat-value" id="fullBins">0</div>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-label">Not Full</div>
+        <div class="stat-value" id="notFullBins">0</div>
+      </div>
+    </div>
+
+    <div class="card detail-panel" id="detailPanel">
+      <div class="detail-header">
+        <div>
+          <h2 id="binName">Select a bin</h2>
+          <p id="binLocation">Choose any marker on the map.</p>
+        </div>
+        <div class="badge ok" id="binStatus">Waiting</div>
+      </div>
+
+      <div class="detail-grid">
+        <div class="detail-item">
+          <div class="label">Bin ID</div>
+          <div class="value" id="binId">—</div>
+        </div>
+        <div class="detail-item">
+          <div class="label">Status</div>
+          <div class="value" id="binStatusText">—</div>
+        </div>
+        <div class="detail-item">
+          <div class="label">Coordinates</div>
+          <div class="value" id="binCoords">—</div>
+        </div>
+        <div class="detail-item">
+          <div class="label">Last Emptied</div>
+          <div class="value" id="binEmptied">—</div>
+        </div>
+      </div>
+        <div class="value" id="binNotes">
+          This panel will update when a garbage bin icon is clicked.
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="action-btn" id="resetViewBtn">Reset View</button>
+    </div>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <script>
+    const bins = [
+      {
+        id: "UGB-01",
+        name: "Heritage Museum Zone",
+        location: "Bay St / Antigonish Heritage Museum",
+        coords: [45.6186, -61.9909],
+        status: "Full",
+        lastEmptied: "2026-03-28 07:10"
+      },
+      {
+        id: "UGB-02",
+        name: "Main Street Core",
+        location: "Main St / Downtown Antigonish",
+        coords: [45.6170, -61.9962],
+        status: "Not Full",
+        lastEmptied: "2026-03-28 09:20"
+      },
+      {
+        id: "UGB-03",
+        name: "StFX Campus North",
+        location: "College St / StFX area",
+        coords: [45.6231, -61.9963],
+        status: "Not Full",
+        lastEmptied: "2026-03-29 08:05"
+      },
+      {
+        id: "UGB-04",
+        name: "Sisters of St. Martha",
+        location: "North end / Bay St corridor",
+        coords: [45.6250, -61.9926],
+        status: "Not Full",
+        lastEmptied: "2026-03-27 14:35"
+      },
+      {
+        id: "UGB-05",
+        name: "Sylvan Valley Edge",
+        location: "Near S&L Bakery / north-west edge",
+        coords: [45.6218, -62.0022],
+        status: "Not Full",
+        lastEmptied: "2026-03-29 06:55"
+      },
+      {
+        id: "UGB-06",
+        name: "West Street Service Point",
+        location: "West St / central west side",
+        coords: [45.6138, -61.9996],
+        status: "Full",
+        lastEmptied: "2026-03-27 08:40"
+      },
+      {
+        id: "UGB-07",
+        name: "Appleseed Drive",
+        location: "South-west / Appleseed Dr",
+        coords: [45.6098, -62.0050],
+        status: "Not Full",
+        lastEmptied: "2026-03-29 10:15"
+      },
+      {
+        id: "UGB-08",
+        name: "Homeward Inns Corridor",
+        location: "Hwy 4 / south-west entrance",
+        coords: [45.6078, -61.9972],
+        status: "Not Full",
+        lastEmptied: "2026-03-28 11:05"
+      },
+      {
+        id: "UGB-09",
+        name: "Claymore / Riverside",
+        location: "South-east / Riverside area",
+        coords: [45.6097, -61.9898],
+        status: "Not Full",
+        lastEmptied: "2026-03-29 07:50"
+      },
+      {
+        id: "UGB-10",
+        name: "Marsh / River Road",
+        location: "East side near marsh and river",
+        coords: [45.6148, -61.9868],
+        status: "Full",
+        lastEmptied: "2026-03-27 13:20"
+      },
+      {
+        id: "UGB-11",
+        name: "West End Community",
+        location: "West side near community services",
+        coords: [45.6148, -62.0060],
+        status: "Not Full",
+        lastEmptied: "2026-03-29 09:30"
+      },
+      {
+        id: "UGB-12",
+        name: "Main / Brookland Connection",
+        location: "Main St to Brookland St corridor",
+        coords: [45.6195, -61.9946],
+        status: "Not Full",
+        lastEmptied: "2026-03-28 12:10"
+      }
+    ];
+
+    const initialCenter = [45.6172, -61.9963];
+    const initialZoom = 14;
+
+    const map = L.map("map", {
+      zoomControl: true,
+      scrollWheelZoom: true
+    }).setView(initialCenter, initialZoom);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const binIcon = L.divIcon({
+      className: "",
+      iconSize: [42, 42],
+      iconAnchor: [21, 21],
+      popupAnchor: [0, -18],
+      html: `
+        <div class="bin-icon" aria-label="Garbage bin marker">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 6h18"></path>
+            <path d="M8 6V4h8v2"></path>
+            <path d="M6 6l1 14h10l1-14"></path>
+            <path d="M10 10v6"></path>
+            <path d="M14 10v6"></path>
+          </svg>
+        </div>
+      `
+    });
+
+    function badgeClass(status) {
+      return status === "Full" ? "full" : "ok";
+    }
+
+    function updateStats() {
+      const total = bins.length;
+      const full = bins.filter((bin) => bin.status === "Full").length;
+      const notFull = total - full;
+
+      document.getElementById("totalBins").textContent = total;
+      document.getElementById("fullBins").textContent = full;
+      document.getElementById("notFullBins").textContent = notFull;
+    }
+
+    function updateDetailPanel(bin) {
+      document.getElementById("binName").textContent = bin.name;
+      document.getElementById("binLocation").textContent = bin.location;
+      document.getElementById("binId").textContent = bin.id;
+      document.getElementById("binStatusText").textContent = bin.status;
+      document.getElementById("binCoords").textContent = `${bin.coords[0]}, ${bin.coords[1]}`;
+      document.getElementById("binEmptied").textContent = bin.lastEmptied;
+
+      const statusEl = document.getElementById("binStatus");
+      statusEl.textContent = bin.status;
+      statusEl.className = `badge ${badgeClass(bin.status)}`;
+    }
+
+    bins.forEach((bin) => {
+      const marker = L.marker(bin.coords, { icon: binIcon }).addTo(map);
+
+      marker.bindPopup(`
+        <div class="bin-popup">
+          <strong>${bin.name}</strong>
+          <span>Status: ${bin.status}</span>
+          <span>Last emptied: ${bin.lastEmptied}</span>
+          <span>Location: ${bin.location}</span>
+        </div>
+      `);
+
+      marker.on("click", () => {
+        updateDetailPanel(bin);
+      });
+    });
+
+    document.getElementById("resetViewBtn").addEventListener("click", () => {
+      map.setView(initialCenter, initialZoom);
+    });
+
+    updateStats();
+    updateDetailPanel(bins[0]);
+  </script>
+</body>
+</html>
