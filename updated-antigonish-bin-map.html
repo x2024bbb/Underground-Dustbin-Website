@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Antigonish Underground Bin Map</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+
+  <style>
+    :root {
+      --bg: #eaf2ee;
+      --panel: rgba(255, 255, 255, 0.95);
+      --panel-strong: rgba(255, 255, 255, 0.98);
+      --text: #17322a;
+      --muted: #5b716b;
+      --border: rgba(17, 24, 39, 0.1);
+      --shadow: 0 12px 30px rgba(16, 24, 40, 0.14);
+      --green: #1f7a45;
+      --red: #c0362c;
+      --blue: #0c6ddf;
+      --amber: #c78500;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    body {
+      overflow: hidden;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    .topbar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      z-index: 1000;
+      display: grid;
+      grid-template-columns: minmax(320px, 420px) repeat(3, minmax(120px, 1fr));
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+      pointer-events: auto;
+    }
+
+    .title-card {
+      padding: 16px 18px;
+    }
+
+    .title-card h1 {
+      margin: 0 0 6px;
+      font-size: 1.12rem;
+      line-height: 1.2;
+    }
+
+    .title-card p {
+      margin: 0;
+      font-size: 0.92rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .stat-card {
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 86px;
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-size: 1.65rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .mode-toolbar {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 1001;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-chip {
+      background: var(--panel-strong);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-btn,
+    .primary-btn,
+    .secondary-btn {
+      border: 1px solid var(--border);
+      background: var(--panel-strong);
+      color: var(--text);
+      box-shadow: var(--shadow);
+      border-radius: 14px;
+      padding: 11px 14px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+
+    .toolbar-btn:hover,
+    .primary-btn:hover,
+    .secondary-btn:hover,
+    .action-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .primary-btn {
+      background: var(--green);
+      color: white;
+      border-color: rgba(31, 122, 69, 0.4);
+      box-shadow: 0 12px 30px rgba(31, 122, 69, 0.22);
+    }
+
+    .secondary-btn {
+      background: white;
+    }
+
+    .detail-panel {
+      position: absolute;
+      right: 16px;
+      bottom: 16px;
+      width: min(460px, calc(100% - 32px));
+      z-index: 1000;
+      padding: 18px;
+    }
+
+    .detail-header {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .detail-header h2 {
+      margin: 0;
+      font-size: 1.15rem;
+      line-height: 1.3;
+    }
+
+    .detail-header p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+
+    .badge.ok {
+      background: rgba(31, 122, 69, 0.1);
+      color: var(--green);
+      border-color: rgba(31, 122, 69, 0.18);
+    }
+
+    .badge.full {
+      background: rgba(192, 54, 44, 0.11);
+      color: var(--red);
+      border-color: rgba(192, 54, 44, 0.18);
+    }
+
+    .badge.viewer {
+      background: rgba(12, 109, 223, 0.08);
+      color: var(--blue);
+      border-color: rgba(12, 109, 223, 0.18);
+    }
+
+    .badge.updater {
+      background: rgba(199, 133, 0, 0.11);
+      color: #9a6300;
+      border-color: rgba(199, 133, 0, 0.2);
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .detail-item {
+      background: rgba(12, 109, 223, 0.05);
+      border: 1px solid rgba(12, 109, 223, 0.09);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .detail-item .label {
+      font-size: 0.76rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
+
+    .detail-item .value {
+      font-size: 0.98rem;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .swipe-card {
+      display: none;
+      background: rgba(192, 54, 44, 0.05);
+      border: 1px solid rgba(192, 54, 44, 0.14);
+      border-radius: 16px;
+      padding: 14px;
+      margin-top: 4px;
+    }
+
+    .swipe-card.active {
+      display: block;
+    }
+
+    .swipe-title {
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: var(--red);
+      margin-bottom: 6px;
+    }
+
+    .swipe-help {
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.45;
+      margin-bottom: 12px;
+    }
+
+    .swipe-track-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .swipe-track {
+      width: 100%;
+      accent-color: var(--green);
+      cursor: pointer;
+    }
+
+    .swipe-end {
+      min-width: 42px;
+      text-align: right;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .save-message {
+      margin-top: 10px;
+      font-size: 0.9rem;
+      color: var(--green);
+      font-weight: 700;
+      display: none;
+    }
+
+    .save-message.active {
+      display: block;
+    }
+
+    .actions {
+      position: absolute;
+      left: 16px;
+      bottom: 16px;
+      z-index: 1000;
+      display: flex;
+      gap: 10px;
+    }
+
+    .action-btn {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      box-shadow: var(--shadow);
+      border-radius: 14px;
+      padding: 11px 14px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+
+    .bin-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: white;
+      color: var(--green);
+      border: 2px solid rgba(31, 122, 69, 0.22);
+      box-shadow: 0 8px 18px rgba(16, 24, 40, 0.22);
+      position: relative;
+    }
+
+    .bin-icon.full-marker {
+      color: var(--red);
+      border-color: rgba(192, 54, 44, 0.25);
+    }
+
+    .bin-icon svg {
+      width: 23px;
+      height: 23px;
+      stroke-width: 2.1;
+    }
+
+    .marker-alert {
+      position: absolute;
+      top: -5px;
+      right: -3px;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: var(--red);
+      color: white;
+      font-size: 0.84rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 12px rgba(192, 54, 44, 0.3);
+    }
+
+    .bin-popup {
+      min-width: 175px;
+    }
+
+    .bin-popup strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.95rem;
+    }
+
+    .bin-popup span {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+      display: block;
+    }
+
+    .leaflet-popup-content-wrapper {
+      border-radius: 14px;
+    }
+
+    .gate-overlay,
+    .login-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 1200;
+      background: rgba(10, 16, 14, 0.46);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .login-overlay {
+      display: none;
+      z-index: 1300;
+    }
+
+    .gate-panel {
+      width: min(760px, 100%);
+      background: rgba(255, 255, 255, 0.98);
+      border-radius: 26px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(17, 24, 39, 0.08);
+      padding: 24px;
+    }
+
+    .gate-title {
+      margin: 0 0 8px;
+      font-size: 1.55rem;
+      line-height: 1.2;
+    }
+
+    .gate-copy {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 0.98rem;
+      line-height: 1.55;
+    }
+
+    .choice-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .choice-card {
+      background: #f7fbf9;
+      border: 1px solid rgba(17, 24, 39, 0.08);
+      border-radius: 20px;
+      padding: 18px;
+    }
+
+    .choice-card h3 {
+      margin: 0 0 8px;
+      font-size: 1.02rem;
+    }
+
+    .choice-card p {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .login-form {
+      display: grid;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .form-field label {
+      display: block;
+      font-size: 0.86rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .form-field input {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      padding: 12px 13px;
+      background: white;
+    }
+
+    .form-error {
+      color: var(--red);
+      font-size: 0.9rem;
+      font-weight: 700;
+      min-height: 1.2em;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 1200px) {
+      .topbar {
+        grid-template-columns: minmax(320px, 420px) repeat(3, minmax(100px, 1fr));
+        right: 250px;
+      }
+    }
+
+    @media (max-width: 1100px) {
+      .topbar {
+        grid-template-columns: 1fr 1fr;
+        right: 16px;
+      }
+
+      .title-card {
+        grid-column: 1 / -1;
+      }
+
+      .mode-toolbar {
+        top: auto;
+        bottom: 132px;
+        right: 16px;
+        justify-content: flex-end;
+        max-width: min(420px, calc(100% - 32px));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .topbar {
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .title-card h1 {
+        font-size: 1rem;
+      }
+
+      .stat-card {
+        min-height: 74px;
+      }
+
+      .stat-value {
+        font-size: 1.35rem;
+      }
+
+      .detail-panel {
+        left: 10px;
+        right: 10px;
+        width: auto;
+        bottom: 74px;
+        padding: 14px;
+      }
+
+      .detail-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .actions {
+        left: 10px;
+        bottom: 10px;
+      }
+
+      .mode-toolbar {
+        left: 10px;
+        right: 10px;
+        bottom: auto;
+        top: auto;
+        max-width: none;
+        justify-content: flex-start;
+      }
+
+      .choice-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+
+      .detail-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .gate-panel {
+        padding: 18px;
+      }
+
+      .toolbar-actions {
+        width: 100%;
+      }
+
+      .toolbar-btn {
+        flex: 1 1 auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="map"></div>
+
+    <div class="topbar">
+      <div class="card title-card">
+        <h1>Antigonish Underground Bin Map</h1>
+        <p>
+          View current underground dustbin status across Antigonish, or sign in
+          to update full bins after collection.
+        </p>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-label">Total Bins</div>
+        <div class="stat-value" id="totalBins">0</div>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-label">Full</div>
+        <div class="stat-value" id="fullBins">0</div>
+      </div>
+
+      <div class="card stat-card">
+        <div class="stat-label">Not Full</div>
+        <div class="stat-value" id="notFullBins">0</div>
+      </div>
+    </div>
+
+    <div class="mode-toolbar">
+      <div class="toolbar-chip" id="modeChip">Mode: View Status</div>
+      <div class="toolbar-actions">
+        <button class="toolbar-btn" id="viewModeBtn" type="button">View Status</button>
+        <button class="toolbar-btn" id="updateModeBtn" type="button">Update Status</button>
+      </div>
+    </div>
+
+    <div class="card detail-panel" id="detailPanel">
+      <div class="detail-header">
+        <div>
+          <h2 id="binName">Select a bin</h2>
+          <p id="binSubtitle">Choose any marker on the map.</p>
+        </div>
+        <div class="badge ok" id="binStatus">Waiting</div>
+      </div>
+
+      <div class="detail-grid">
+        <div class="detail-item">
+          <div class="label">Bin ID</div>
+          <div class="value" id="binId">—</div>
+        </div>
+        <div class="detail-item">
+          <div class="label">Status</div>
+          <div class="value" id="binStatusText">—</div>
+        </div>
+        <div class="detail-item">
+          <div class="label">Coordinates</div>
+          <div class="value" id="binCoords">—</div>
+        </div>
+        <div class="detail-item">
+          <div class="label">Last Emptied</div>
+          <div class="value" id="binEmptied">—</div>
+        </div>
+      </div>
+
+      <div class="swipe-card" id="swipeCard">
+        <div class="swipe-title">Mark this bin as not full</div>
+        <div class="swipe-help">
+          In update mode, full bins show a red exclamation mark. Slide all the
+          way to the right to save this bin as not full after collection.
+        </div>
+        <div class="swipe-track-wrap">
+          <input
+            class="swipe-track"
+            id="statusSwipe"
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value="0"
+          />
+          <div class="swipe-end">100%</div>
+        </div>
+        <div class="save-message" id="saveMessage">Saved. Status updated to not full.</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="action-btn" id="resetViewBtn" type="button">Reset View</button>
+    </div>
+
+    <div class="gate-overlay" id="gateOverlay">
+      <div class="gate-panel">
+        <h2 class="gate-title">Antigonish Sanitation Access</h2>
+        <p class="gate-copy">
+          Choose how you want to enter the map. You can view all underground
+          dustbin status without signing in, or use staff login to update full bins.
+        </p>
+
+        <div class="choice-grid">
+          <div class="choice-card">
+            <h3>View Status</h3>
+            <p>
+              Open the map immediately and inspect current bin status without
+              editing any records.
+            </p>
+            <button class="primary-btn" id="enterViewBtn" type="button">Open Map</button>
+          </div>
+
+          <div class="choice-card">
+            <h3>Update Status</h3>
+            <p>
+              Sign in with the staff account to update full bins after they have
+              been emptied.
+            </p>
+            <button class="secondary-btn" id="openLoginBtn" type="button">Staff Login</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="login-overlay" id="loginOverlay">
+      <div class="gate-panel" style="max-width: 460px;">
+        <h2 class="gate-title">Staff Login</h2>
+        <p class="gate-copy">
+          Enter the employee credentials to unlock update mode.
+        </p>
+
+        <form class="login-form" id="loginForm">
+          <div class="form-field">
+            <label for="emailInput">Email</label>
+            <input id="emailInput" type="email" autocomplete="username" />
+          </div>
+
+          <div class="form-field">
+            <label for="passwordInput">Password</label>
+            <input id="passwordInput" type="password" autocomplete="current-password" />
+          </div>
+
+          <div class="form-error" id="formError"></div>
+
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="primary-btn" type="submit">Sign In</button>
+            <button class="secondary-btn" id="cancelLoginBtn" type="button">Back</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <script>
+    const STORAGE_KEY = "antigonish-underground-bins-v2";
+    const STAFF_EMAIL = "employee@antigonishsanitation.ca";
+    const STAFF_PASSWORD = "designproject";
+
+    const defaultBins = [
+      {
+        id: "UGB-01",
+        name: "Saint Francis Xavier University Underground Dustbin (Notre Dame Avenue)",
+        coords: [45.6186, -61.9909],
+        status: "Full",
+        lastEmptied: "2026-03-28 07:10"
+      },
+      {
+        id: "UGB-02",
+        name: "Saint Francis Xavier University Underground Dustbin (Convocation Boulevard)",
+        coords: [45.6170, -61.9962],
+        status: "Not Full",
+        lastEmptied: "2026-03-28 09:20"
+      },
+      {
+        id: "UGB-03",
+        name: "Hawthrone Street Underground Dustbin",
+        coords: [45.6231, -61.9963],
+        status: "Not Full",
+        lastEmptied: "2026-03-29 08:05"
+      },
+      {
+        id: "UGB-04",
+        name: "College Street Underground Dustbin",
+        coords: [45.6250, -61.9926],
+        status: "Not Full",
+        lastEmptied: "2026-03-27 14:35"
+      },
+      {
+        id: "UGB-05",
+        name: "Braemore Avenue Underground Dustbin",
+        coords: [45.6218, -62.0022],
+        status: "Not Full",
+        lastEmptied: "2026-03-29 06:55"
+      },
+      {
+        id: "UGB-06",
+        name: "Highway 7 Underground Dustbin",
+        coords: [45.6138, -61.9996],
+        status: "Full",
+        lastEmptied: "2026-03-27 08:40"
+      },
+      {
+        id: "UGB-07",
+        name: "Nova Landing Underground Dustbin",
+        coords: [45.6098, -62.0050],
+        status: "Not Full",
+        lastEmptied: "2026-03-29 10:15"
+      },
+      {
+        id: "UGB-08",
+        name: "Highway 4 Underground Dustbin",
+        coords: [45.6148, -61.9868],
+        status: "Full",
+        lastEmptied: "2026-03-27 13:20"
+      },
+      {
+        id: "UGB-09",
+        name: "James Street Underground Dustbin",
+        coords: [45.6148, -62.0060],
+        status: "Not Full",
+        lastEmptied: "2026-03-29 09:30"
+      },
+      {
+        id: "UGB-10",
+        name: "Saint Francis Xavier University Underground Dustbin (Martha Drive)",
+        coords: [45.6195, -61.9946],
+        status: "Not Full",
+        lastEmptied: "2026-03-28 12:10"
+      }
+    ];
+
+    let bins = loadBins();
+    let currentMode = "view";
+    let isAuthenticated = false;
+    let selectedBinId = bins[0].id;
+    let markers = [];
+    let markerById = new Map();
+
+    const initialCenter = [45.6172, -61.9963];
+    const initialZoom = 14;
+
+    const map = L.map("map", {
+      zoomControl: true,
+      scrollWheelZoom: true
+    }).setView(initialCenter, initialZoom);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const modeChip = document.getElementById("modeChip");
+    const gateOverlay = document.getElementById("gateOverlay");
+    const loginOverlay = document.getElementById("loginOverlay");
+    const formError = document.getElementById("formError");
+    const swipeCard = document.getElementById("swipeCard");
+    const statusSwipe = document.getElementById("statusSwipe");
+    const saveMessage = document.getElementById("saveMessage");
+    const emailInput = document.getElementById("emailInput");
+    const passwordInput = document.getElementById("passwordInput");
+
+    function cloneDefaultBins() {
+      return defaultBins.map((bin) => ({ ...bin, coords: [...bin.coords] }));
+    }
+
+    function loadBins() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) {
+        return cloneDefaultBins();
+      }
+
+      try {
+        const parsed = JSON.parse(saved);
+        if (!Array.isArray(parsed) || parsed.length !== defaultBins.length) {
+          return cloneDefaultBins();
+        }
+        return parsed;
+      } catch (error) {
+        return cloneDefaultBins();
+      }
+    }
+
+    function saveBins() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(bins));
+    }
+
+    function formatTimestamp(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const hour = String(date.getHours()).padStart(2, "0");
+      const minute = String(date.getMinutes()).padStart(2, "0");
+      return `${year}-${month}-${day} ${hour}:${minute}`;
+    }
+
+    function findBin(id) {
+      return bins.find((bin) => bin.id === id);
+    }
+
+    function markerIcon(bin) {
+      const isFull = bin.status === "Full";
+      const showAlert = currentMode === "update" && isFull;
+
+      return L.divIcon({
+        className: "",
+        iconSize: [42, 42],
+        iconAnchor: [21, 21],
+        popupAnchor: [0, -18],
+        html: `
+          <div class="bin-icon ${isFull ? "full-marker" : ""}" aria-label="Garbage bin marker">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 6h18"></path>
+              <path d="M8 6V4h8v2"></path>
+              <path d="M6 6l1 14h10l1-14"></path>
+              <path d="M10 10v6"></path>
+              <path d="M14 10v6"></path>
+            </svg>
+            ${showAlert ? '<span class="marker-alert">!</span>' : ""}
+          </div>
+        `
+      });
+    }
+
+    function badgeClass(status) {
+      return status === "Full" ? "full" : "ok";
+    }
+
+    function updateModeChip() {
+      modeChip.textContent = currentMode === "update" ? "Mode: Update Status" : "Mode: View Status";
+    }
+
+    function updateStats() {
+      const total = bins.length;
+      const full = bins.filter((bin) => bin.status === "Full").length;
+      const notFull = total - full;
+
+      document.getElementById("totalBins").textContent = total;
+      document.getElementById("fullBins").textContent = full;
+      document.getElementById("notFullBins").textContent = notFull;
+    }
+
+    function updateSwipeCard(bin) {
+      saveMessage.classList.remove("active");
+      statusSwipe.value = 0;
+
+      const showSwipe = currentMode === "update" && bin && bin.status === "Full";
+      swipeCard.classList.toggle("active", showSwipe);
+    }
+
+    function updateDetailPanel(bin) {
+      if (!bin) return;
+
+      selectedBinId = bin.id;
+      document.getElementById("binName").textContent = bin.name;
+      document.getElementById("binSubtitle").textContent =
+        currentMode === "update"
+          ? "Update mode is active."
+          : "View mode is active.";
+      document.getElementById("binId").textContent = bin.id;
+      document.getElementById("binStatusText").textContent = bin.status;
+      document.getElementById("binCoords").textContent = `${bin.coords[0]}, ${bin.coords[1]}`;
+      document.getElementById("binEmptied").textContent = bin.lastEmptied;
+
+      const statusEl = document.getElementById("binStatus");
+      statusEl.textContent = bin.status;
+      statusEl.className = `badge ${badgeClass(bin.status)}`;
+
+      updateSwipeCard(bin);
+    }
+
+    function popupHtml(bin) {
+      return `
+        <div class="bin-popup">
+          <strong>${bin.name}</strong>
+          <span>Status: ${bin.status}</span>
+          <span>Last emptied: ${bin.lastEmptied}</span>
+          <span>Coordinates: ${bin.coords[0]}, ${bin.coords[1]}</span>
+        </div>
+      `;
+    }
+
+    function renderMarkers() {
+      markers.forEach((marker) => map.removeLayer(marker));
+      markers = [];
+      markerById.clear();
+
+      bins.forEach((bin) => {
+        const marker = L.marker(bin.coords, { icon: markerIcon(bin) }).addTo(map);
+        marker.bindPopup(popupHtml(bin));
+
+        marker.on("click", () => {
+          updateDetailPanel(bin);
+          marker.setPopupContent(popupHtml(bin));
+        });
+
+        markers.push(marker);
+        markerById.set(bin.id, marker);
+      });
+    }
+
+    function refreshMarker(bin) {
+      const marker = markerById.get(bin.id);
+      if (!marker) return;
+      marker.setIcon(markerIcon(bin));
+      marker.setPopupContent(popupHtml(bin));
+    }
+
+    function enterViewMode() {
+      currentMode = "view";
+      gateOverlay.classList.add("hidden");
+      loginOverlay.style.display = "none";
+      updateModeChip();
+      renderMarkers();
+      updateStats();
+      updateDetailPanel(findBin(selectedBinId) || bins[0]);
+    }
+
+    function enterUpdateMode() {
+      currentMode = "update";
+      gateOverlay.classList.add("hidden");
+      loginOverlay.style.display = "none";
+      updateModeChip();
+      renderMarkers();
+      updateStats();
+      updateDetailPanel(findBin(selectedBinId) || bins[0]);
+    }
+
+    function requestUpdateMode() {
+      if (isAuthenticated) {
+        enterUpdateMode();
+        return;
+      }
+      formError.textContent = "";
+      emailInput.value = "";
+      passwordInput.value = "";
+      loginOverlay.style.display = "flex";
+    }
+
+    function markBinNotFull(binId) {
+      const bin = findBin(binId);
+      if (!bin || bin.status !== "Full") return;
+
+      bin.status = "Not Full";
+      bin.lastEmptied = formatTimestamp(new Date());
+      saveBins();
+      updateStats();
+      updateDetailPanel(bin);
+      refreshMarker(bin);
+      saveMessage.classList.add("active");
+    }
+
+    document.getElementById("enterViewBtn").addEventListener("click", enterViewMode);
+
+    document.getElementById("openLoginBtn").addEventListener("click", () => {
+      loginOverlay.style.display = "flex";
+    });
+
+    document.getElementById("cancelLoginBtn").addEventListener("click", () => {
+      loginOverlay.style.display = "none";
+      formError.textContent = "";
+    });
+
+    document.getElementById("viewModeBtn").addEventListener("click", enterViewMode);
+    document.getElementById("updateModeBtn").addEventListener("click", requestUpdateMode);
+
+    document.getElementById("loginForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
+
+      if (email === STAFF_EMAIL && password === STAFF_PASSWORD) {
+        isAuthenticated = true;
+        formError.textContent = "";
+        enterUpdateMode();
+        return;
+      }
+
+      formError.textContent = "Incorrect email or password.";
+    });
+
+    statusSwipe.addEventListener("input", () => {
+      if (Number(statusSwipe.value) >= 100) {
+        markBinNotFull(selectedBinId);
+        setTimeout(() => {
+          statusSwipe.value = 0;
+        }, 250);
+      }
+    });
+
+    document.getElementById("resetViewBtn").addEventListener("click", () => {
+      map.setView(initialCenter, initialZoom);
+    });
+
+    updateModeChip();
+    renderMarkers();
+    updateStats();
+    updateDetailPanel(bins[0]);
+  </script>
+</body>
+</html>
